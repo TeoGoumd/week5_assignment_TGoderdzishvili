@@ -1,0 +1,271 @@
+---
+title: "Bigrams Exercise Sept 24"
+author: "Rob Wells"
+date: '2024-09-20'
+output: html_document
+---
+
+# Jour 389/689 Fall 2024:
+
+
+```{r}
+#load tidyverse, tidytext, rio and quanteda libraries
+
+library(tidyverse)
+library(tidytext)
+library(rio)
+library(quanteda)
+
+```
+
+```{r}
+#Import dataframe 
+
+lynch <- read_csv("../data/articles_oct_19.csv")
+
+```
+
+
+#Create a new dataframe that filters articles for 1900 to 1910
+
+```{r}
+
+filtered_articles <- lynch %>%
+  filter(year >= 1900 & year <= 1910)
+```
+
+
+#Count the number of distinct articles in 1900 dataframe
+```{r}
+#not sure if I shall count the years or not
+
+library(dplyr)
+
+
+dataframe1900 <- filtered_articles %>%
+  distinct(filename, .keep_all = TRUE) %>%
+  count(filename)
+
+#1732 objectives and 2 variables for 1910 to 1910 dataframe.
+
+```
+
+
+# Count the number of newspaper_states in the 1900 corpus
+```{r}
+
+newspaper_states1900 <- filtered_articles %>%
+   distinct(filename, .keep_all = TRUE) %>% 
+  count(newspaper_state) %>%
+  arrange(desc(n))
+
+```
+
+
+
+# Tokenize the 1900 lynching stories
+```{r}
+
+Toklynch <- str_replace_all(filtered_articles$sentence, "- ", "")
+Toklynch_df <- tibble(Toklynch,)
+
+
+Toklynch_tokenized <- Toklynch_df %>%
+  unnest_tokens(word,Toklynch)
+```
+
+#Remove stopwords
+The tidytext package includes the stop_words dataset.It contains, as of this writing, 1,149 words that data scientists and linguistic nerds felt could be removed from sentences because they don't add meaning. Filtering out these words can help focus on the more meaningful content, making it easier to uncover trends, themes, and key information in large amounts of text. Obviously, we have different priorities and we may or may not want to use stop_words or we have want to provide a customized list of stop words.
+
+The stop_words list is derived from three separate lists, or lexicons: SMART (571 words), onix (404 words), and snowball (174 words)
+
+The ONIX lexicon comes from the Open Information Exchange and is often used in text mining and natural language processing. 
+
+The Snowball lexicon is part of a broader project that has algorithms that simplify words in different languages by reducing them to their root form. It's best known for the Porter stemming algorithm, which, for example, changes "running" to "run." 
+
+Lastly, the SMART lexicon is a set of common words, like "and," "the," and "is," and it comes from the SMART Information Retrieval System, created at Cornell University in the 1960s.
+
+
+```{r}
+data(stop_words)
+
+test <- stop_words %>% 
+  as.data.frame()
+
+head(test)
+```
+# Strip out stop words
+
+```{r}
+
+ct_distinct1 <- Toklynch_tokenized %>%
+  count(word, sort=TRUE)
+
+head(ct_distinct1)
+```
+
+# Bigrams
+## We are now creating two word phrases but before the stop words are taken out
+
+```{r}
+stories_bigrams <- Toklynch_df %>%
+  unnest_tokens(bigram, Toklynch, token="ngrams", n=2)
+
+stories_bigrams_separated <- stories_bigrams %>%
+  separate(bigram, c("word1", "word2"), sep = " ")
+
+```
+
+
+
+# Create a new dataframe with counts of the bigrams
+
+```{r}
+bigrams <- filtered_articles %>%
+  unnest_tokens(bigram, filename, token = "ngrams", n = 2)  
+
+
+bigram_counts <- bigrams %>%
+  count(bigram, sort = TRUE)
+
+bigram_counts_df <- bigram_counts %>%
+  as.data.frame()
+
+head(bigram_counts_df, 20)
+
+```
+
+## Now filter the counts 
+```{r}
+
+stories_bigrams_filtered <- stories_bigrams_separated %>%
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+stories_bigram_cts2 <- stories_bigrams_filtered %>%
+  count(word1, word2, sort = TRUE) %>% 
+  filter(!is.na(word1))
+
+stories_bigram_cts2
+```
+
+# Add a "1900" decade column
+Hint: use mutate
+```{r}
+
+filtered_articles <- filtered_articles %>%
+  mutate(decade = "1900")
+
+head(filtered_articles)
+
+```
+
+
+# YOUR TURN
+
+#Create one dataframe with black press articles
+```{r}
+
+Blackpress <- lynch %>%
+  filter(!is.na(black_press))%>%
+   filter(!is.na(newspaper_name))%>%
+  count(newspaper_name)%>%
+arrange(desc(n))
+
+
+```
+
+
+#Create a second dataframe without black press articles
+```{r}
+
+nonblackpress <- lynch %>%
+   filter(!is.na(newspaper_name)) %>% 
+    filter(is.na(black_press)) %>%  
+  count(newspaper_name) %>%               
+  arrange(desc(n))
+
+print(nonblackpress)
+
+```
+
+
+#Produce the top 20 bigrams for the black press and non-black press coverage
+Compare and discuss!
+```{r}
+library(dplyr)
+library(tidytext)
+library(tidyr)  
+
+
+data(stop_words)
+
+
+blackpress_bigrams <- lynch %>%
+  filter(!is.na(black_press)) %>%  
+  filter(!is.na(sentence)) %>%    
+  unnest_tokens(bigram, sentence, token = "ngrams", n = 2) %>%  
+  separate(bigram, into = c("word1", "word2"), sep = " ") %>%  
+  filter(!word1 %in% stop_words$word, !word2 %in% stop_words$word) %>%  
+  unite(bigram, word1, word2, sep = " ") %>%  
+  count(bigram, sort = TRUE) %>%  
+  
+
+  top_n(20, n) %>%
+  arrange(desc(n))
+
+
+
+print("Top 20 Bigrams for Black Press (after removing stopwords):")
+print(blackpress_bigrams)
+
+
+
+nonblackpress_bigrams <- lynch %>%
+  filter(is.na(black_press)) %>%   
+  filter(!is.na(sentence)) %>%   
+  unnest_tokens(bigram, sentence, token = "ngrams", n = 2) %>%  
+  separate(bigram, into = c("word1", "word2"), sep = " ") %>%  
+  filter(!word1 %in% stop_words$word, !word2 %in% stop_words$word) %>%  
+  unite(bigram, word1, word2, sep = " ") %>% 
+  count(bigram, sort = TRUE) %>%  
+  
+  top_n(20, n) %>%
+  arrange(desc(n))
+
+
+
+
+
+print("Top 20 Bigrams for Non-Black Press (after removing stopwords):")
+print(nonblackpress_bigrams)
+
+
+
+comparison_bigrams <- full_join(
+  blackpress_bigrams %>% rename(black_press_count = n),
+  nonblackpress_bigrams %>% rename(non_black_press_count = n),
+  by = "bigram") %>%
+
+
+
+
+
+print("Comparison of Bigrams Between Black Press and Non-Black Press:")
+print(comparison_bigrams)
+```
+
+
+#Based on the given data, black and non-black press had some similarities and differences of what they were discussing. 
+
+- For example, one of the frequently-discussed topic was the "lynch law" for both. In fact, it was the most frequently discussed in non-black press and Second most popular for black press. 
+- Certain topics, such as "civil rights" and "anti lynching bill" seem to be popular for black press. Seems like, it was concerned with the legislative actions. According to the data, nothing about it is mentioned on the non-black press papers. 
+- On the contrary, non-black press frequently reports about lynching and jailing of black people. 
+
+
+```{r}
+
+colnames(lynch)
+
+```
+
